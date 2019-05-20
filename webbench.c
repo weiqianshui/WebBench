@@ -24,6 +24,8 @@
 #include <strings.h>
 #include <time.h>
 #include <signal.h>
+#include <stdlib.h>                                   
+#include <stdio.h>
 
 /* values */
 volatile int timerexpired=0;
@@ -38,6 +40,7 @@ int http10=1; /* 0 - http/0.9, 1 - http/1.0, 2 - http/1.1 */
 #define METHOD_HEAD 1
 #define METHOD_OPTIONS 2
 #define METHOD_TRACE 3
+#define METHOD_POST 4
 #define PROGRAM_VERSION "1.5"
 int method=METHOD_GET;
 int clients=1;
@@ -46,6 +49,7 @@ int force_reload=0;
 int proxyport=80;
 char *proxyhost=NULL;
 int benchtime=30;
+char * data = NULL;
 
 /* internal */
 int mypipe[2];
@@ -66,6 +70,8 @@ static const struct option long_options[]=
     {"head",no_argument,&method,METHOD_HEAD},
     {"options",no_argument,&method,METHOD_OPTIONS},
     {"trace",no_argument,&method,METHOD_TRACE},
+    {"post",no_argument,&method,METHOD_POST},
+    {"data",required_argument, NULL, 'd'},
     {"version",no_argument,NULL,'V'},
     {"proxy",required_argument,NULL,'p'},
     {"clients",required_argument,NULL,'c'},
@@ -98,6 +104,8 @@ static void usage(void)
             "  --head                   Use HEAD request method.\n"
             "  --options                Use OPTIONS request method.\n"
             "  --trace                  Use TRACE request method.\n"
+            "  --post                   Use POST request method.\n"
+            "  -d|--data                Request data.\n"
             "  -?|-h|--help             This information.\n"
             "  -V|--version             Display program version.\n"
            );
@@ -115,7 +123,7 @@ int main(int argc, char *argv[])
         return 2;
     } 
 
-    while((opt=getopt_long(argc,argv,"912Vfrt:p:c:?h",long_options,&options_index))!=EOF )
+    while((opt=getopt_long(argc,argv,"912Vfrt:p:c:d:?h",long_options,&options_index))!=EOF )
     {
         switch(opt)
         {
@@ -127,6 +135,7 @@ int main(int argc, char *argv[])
             case '2': http10=2;break;
             case 'V': printf(PROGRAM_VERSION"\n");exit(0);
             case 't': benchtime=atoi(optarg);break;	     
+            case 'd': data = optarg;break;
             case 'p': 
             /* proxy server parsing server:port */
             tmp=strrchr(optarg,':');
@@ -217,7 +226,7 @@ int main(int argc, char *argv[])
 
 void build_request(const char *url)
 {
-    char tmp[10];
+    char tmp[10], data_length[5];
     int i;
 
     //bzero(host,MAXHOSTNAMELEN);
@@ -237,6 +246,7 @@ void build_request(const char *url)
         case METHOD_HEAD: strcpy(request,"HEAD");break;
         case METHOD_OPTIONS: strcpy(request,"OPTIONS");break;
         case METHOD_TRACE: strcpy(request,"TRACE");break;
+        case METHOD_POST: strcpy(request,"POST");break;
     }
 
     strcat(request," ");
@@ -314,10 +324,17 @@ void build_request(const char *url)
   
     if(http10>1)
         strcat(request,"Connection: close\r\n");
+    if (data != NULL){
+        strcat(request, "Content-Length: ");
+        sprintf(data_length, "%d", (int)(strlen(data)));
+        strcat(request, data_length);
+        strcat(request,"\r\n");
+    }
     
     /* add empty line at end */
     if(http10>0) strcat(request,"\r\n"); 
-    
+    if (data != NULL)
+        strcat(request, data);
     printf("\nRequest:\n%s\n",request);
 }
 
