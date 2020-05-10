@@ -32,6 +32,13 @@ volatile int timerexpired=0;
 int speed=0;
 int failed=0;
 int bytes=0;
+int less2=0;
+int less5=0;
+int less10=0;
+int less20=0;
+int less30=0;
+int more30=0;
+
 
 /* globals */
 int http10=1; /* 0 - http/0.9, 1 - http/1.0, 2 - http/1.1 */
@@ -83,7 +90,7 @@ static void benchcore(const char* host,const int port, const char *request);
 static int bench(void);
 static void build_request(const char *url);
 
-static void alarm_handler(int signal)
+static void alarm_handler()
 {
     timerexpired=1;
 }	
@@ -315,6 +322,8 @@ void build_request(const char *url)
         strcat(request,"Host: ");
         strcat(request,host);
         strcat(request,"\r\n");
+        //strcat(request,"Authorization:Bearer AAAAAAAq+V1fYgquMwTTAQ==");
+        //strcat(request,"\r\n");
     }
  
     if(force_reload && proxyhost!=NULL)
@@ -341,7 +350,7 @@ void build_request(const char *url)
 /* vraci system rc error kod */
 static int bench(void)
 {
-    int i,j,k;	
+    int i,j,k,a,b,c,d,e,m;	
     pid_t pid=0;
     FILE *f;
 
@@ -403,7 +412,7 @@ static int bench(void)
             return 3;
         }
         /* fprintf(stderr,"Child - %d %d\n",speed,failed); */
-        fprintf(f,"%d %d %d\n",speed,failed,bytes);
+        fprintf(f,"%d %d %d %d %d %d %d %d %d\n",speed,failed,bytes,less2,less5,less10,less20,less30,more30);
         fclose(f);
 
         return 0;
@@ -425,7 +434,7 @@ static int bench(void)
     
         while(1)
         {
-            pid=fscanf(f,"%d %d %d",&i,&j,&k);
+            pid=fscanf(f,"%d %d %d %d %d %d %d %d %d",&i,&j,&k,&a,&b,&c,&d,&e,&m);
             if(pid<2)
             {
                 fprintf(stderr,"Some of our childrens died.\n");
@@ -435,6 +444,12 @@ static int bench(void)
             speed+=i;
             failed+=j;
             bytes+=k;
+            less2+=a;
+            less5+=b;
+            less10+=c;
+            less20+=d;
+            less30+=e;
+            more30+=m;
         
             /* fprintf(stderr,"*Knock* %d %d read=%d\n",speed,failed,pid); */
             if(--clients==0) break;
@@ -447,6 +462,12 @@ static int bench(void)
             (int)(bytes/(float)benchtime),
             speed,
             failed);
+        printf("number of response time less 2 ms is %d.\n", less2);
+        printf("number of response time less 5 ms is %d.\n", less5);
+        printf("number of response time less 10 ms is %d.\n", less10);
+        printf("number of response time less 20 ms is %d.\n", less20);
+        printf("number of response time less 30 ms is %d.\n", less30);
+        printf("number of response time more 30 ms is %d.\n", more30);
     }
     
     return i;
@@ -458,6 +479,8 @@ void benchcore(const char *host,const int port,const char *req)
     char buf[1500];
     int s,i;
     struct sigaction sa;
+    struct timeval t1, t2;
+    long msec1, msec2, rt;
 
     /* setup alarm signal handler */
     sa.sa_handler=alarm_handler;
@@ -479,7 +502,8 @@ void benchcore(const char *host,const int port,const char *req)
             }
             return;
         }
-        
+
+        gettimeofday(&t1, NULL);
         s=Socket(host,port);                          
         if(s<0) { failed++;continue;} 
         if(rlen!=write(s,req,rlen)) {failed++;close(s);continue;}
@@ -506,6 +530,22 @@ void benchcore(const char *host,const int port,const char *req)
             }
         }
         if(close(s)) {failed++;continue;}
+        gettimeofday(&t2, NULL);
         speed++;
+        msec1 = t1.tv_sec * 1000 + t1.tv_usec / 1000;
+        msec2 = t2.tv_sec * 1000 + t2.tv_usec / 1000;
+        rt = msec2 - msec1;
+        if (rt < 2)
+            less2++;
+        else if (rt < 5)
+            less5++;
+        else if (rt < 10)
+            less10++;
+        else if (rt < 20)
+            less20++;
+        else if (rt < 30)
+            less30++;
+        else
+            more30++;
     }
 }
